@@ -1,12 +1,13 @@
-import sys
 import socket
 import struct
 import time
 import threading
+from prompt_toolkit import PromptSession
+from prompt_toolkit.patch_stdout import patch_stdout
 
 server = "2beta2t.net"
 port = 25565
-username = "YawningCheese01"
+username = "golden2"
 login_command = "/login"
 has_logged_in = False
 
@@ -28,9 +29,18 @@ def handle_login(s, server, port, username):
 
 ggg = 5
 
+session = PromptSession()
+
 def listen_for_input():
-    send_packet(ggg, id_chat, encode_string16(input()))
-    listen_for_input()
+    global ggg
+    with patch_stdout():
+        while True:
+            try:
+                user_input = session.prompt("> ")
+                if user_input.strip():
+                    send_packet(ggg, id_chat, encode_string16(user_input))
+            except EOFError:
+                break
 
 input_thread = threading.Thread(target=listen_for_input)
 input_thread.daemon = True
@@ -60,7 +70,7 @@ def m():
             while True:
                 if time.time() - prev_time > 1:
                     prev_time = time.time()
-                    #m()
+                    m()
                     return
 
         while True:
