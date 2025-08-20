@@ -1,12 +1,17 @@
-import sys
 import socket
 import struct
 import time
 import threading
+from prompt_toolkit import PromptSession
+from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.shortcuts import print_formatted_text
 
-server = "2beta2t.net"
+session = PromptSession()
+
+server = session.prompt("Server IP: ")
 port = 25565
-username = "YawningCheese01"
+username = session.prompt("Username: ")
 login_command = "/login"
 has_logged_in = False
 
@@ -16,6 +21,39 @@ id_handshake = 2
 id_chat = 3
 
 prev_time = time.time()
+
+# Chatgpt cooked this color map
+mc_color_map = {
+    "§0": "\x1b[30m",
+    "§1": "\x1b[34m",
+    "§2": "\x1b[32m",
+    "§3": "\x1b[36m",
+    "§4": "\x1b[31m",
+    "§5": "\x1b[35m",
+    "§6": "\x1b[33m",
+    "§7": "\x1b[37m",
+    "§8": "\x1b[90m",
+    "§9": "\x1b[94m",
+    "§a": "\x1b[92m",
+    "§b": "\x1b[96m",
+    "§c": "\x1b[91m",
+    "§d": "\x1b[95m",
+    "§e": "\x1b[93m",
+    "§f": "\x1b[97m",
+    "§l": "\x1b[1m",
+    "§n": "\x1b[4m",
+    "§o": "\x1b[3m",
+    "§m": "\x1b[9m",
+    "§k": "",          
+    "§r": "\x1b[0m",
+}
+
+def translate_colors(msg: str) -> str:
+    for code, ansi in mc_color_map.items():
+        msg = msg.replace(code, ansi)
+    return msg + "\033[0m"
+
+print(translate_colors("§6Golden §e2 §f- §aWelcome to the server!"))
 
 def send_packet(s, id, data):
     s.sendall(struct.pack(f'>b', id) + data)
@@ -28,9 +66,17 @@ def handle_login(s, server, port, username):
 
 ggg = 5
 
+
 def listen_for_input():
-    send_packet(ggg, id_chat, encode_string16(input()))
-    listen_for_input()
+    global ggg
+    with patch_stdout():
+        while True:
+            try:
+                user_input = session.prompt("> ")
+                if user_input.strip():
+                    send_packet(ggg, id_chat, encode_string16(user_input))
+            except EOFError:
+                break
 
 input_thread = threading.Thread(target=listen_for_input)
 input_thread.daemon = True
@@ -60,7 +106,7 @@ def m():
             while True:
                 if time.time() - prev_time > 1:
                     prev_time = time.time()
-                    #m()
+                    m()
                     return
 
         while True:
@@ -93,7 +139,7 @@ def m():
                         send_packet(s, id_login, struct.pack('>i', 14) + encode_string16(username) + struct.pack('>qb', 0, 0))
                 if packet_id == id_chat:
                     length = struct.unpack('>h', s.recv(2))[0]
-                    print(s.recv(length * 2).decode('utf-16-be'))
+                    print_formatted_text(ANSI(translate_colors(s.recv(length * 2).decode('utf-16-be'))))
                 if packet_id == 4:
                     s.recv(8)
                 if packet_id == 5:
