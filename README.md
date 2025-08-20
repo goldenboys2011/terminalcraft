@@ -3,4 +3,5 @@ Use
 python client.py
 ```
 
-To change username, server, port, and ip, change those constants at the beginning of the file.
+To change the port, modify the constant at the beginning of the file.
+For no dependencies, use client_old.py
