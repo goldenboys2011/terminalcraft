@@ -1,7 +1,7 @@
 import asyncio
 import struct
 
-#thanks gpt
+#thanks gpt for the async
 
 SERVER = input("server ip:")
 PORT = 25565
