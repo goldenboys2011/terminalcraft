@@ -7,13 +7,6 @@ import select
 server = "2beta2t.net"
 port = 25565
 username = "YawningCheese01"
-login_command = "/login"
-has_logged_in = False
-
-id_keepalive = 0
-id_login = 1
-id_handshake = 2
-id_chat = 3
 
 def send_packet(s, id, data):
     s.sendall(struct.pack(f'>b', id) + data)
@@ -21,10 +14,7 @@ def send_packet(s, id, data):
 def encode_string16(string):
     return struct.pack(f'>h{len(string) * 2}s', len(string), string.encode('utf-16-be'))
 
-def handle_login(s, server, port, username):
-    send_packet(s, id_handshake, encode_string16(username))
-
-packet_ids = {
+packet_lengths = {
     1: 15,
     4: 8,
     5: 10,
@@ -68,31 +58,30 @@ def m():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((server, port))
         print("Connected to server. Sending login...")
-        handle_login(s, server, port, username)
+        send_packet(s, 2, encode_string16(username))
 
         while True:
             if time.time() - prev_time > 0.5:
-                send_packet(s, id_keepalive, b'')
+                send_packet(s, 0, b'')
                 prev_time = time.time()
-            if select.select([sys.stdin], [], [], 0) != ([],[],[]):
-                send_packet(s, id_chat, encode_string16(sys.stdin.readline()))
 
-            try:
-                if select.select([s], [], [], 0) == ([],[],[]):
-                    continue
+            if select.select([sys.stdin], [], [], 0) != ([],[],[]):
+                send_packet(s, 3, encode_string16(sys.stdin.readline()))
+
+            if select.select([s], [], [], 0) != ([],[],[]):
                 data = s.recv(1)
                 if data == b'':
                     continue
                 
                 packet_id = struct.unpack('>B', data)[0]
 
-                if packet_id == id_handshake:
+                if packet_id == 2:
                     length = struct.unpack('>h', s.recv(2))[0]
                     temp2 = s.recv(length * 2).decode('utf-16-be')
                     print(temp2)
                     if temp2 == "-":
-                        send_packet(s, id_login, struct.pack('>i', 14) + encode_string16(username) + struct.pack('>qb', 0, 0))
-                elif packet_id == id_chat:
+                        send_packet(s, 1, struct.pack('>i', 14) + encode_string16(username) + struct.pack('>qb', 0, 0))
+                elif packet_id == 3:
                     length = struct.unpack('>h', s.recv(2))[0]
                     print(s.recv(length * 2).decode('utf-16-be'))
                 elif packet_id == 0x0f:
@@ -142,21 +131,15 @@ def m():
                 elif packet_id == 0x68:
                     s.recv(1)
                     count = struct.unpack('>h', s.recv(2))[0]
- 
                     for slot in range(count):
                         item_id = struct.unpack('>h', s.recv(2))[0]
                         if item_id != -1:
                             s.recv(3)
                 elif packet_id == 0x82:
                     s.recv(10)
-                    length = struct.unpack('>h', s.recv(2))[0]
-                    s.recv(length)
-                    length = struct.unpack('>h', s.recv(2))[0]
-                    s.recv(length)
-                    length = struct.unpack('>h', s.recv(2))[0]
-                    s.recv(length)
-                    length = struct.unpack('>h', s.recv(2))[0]
-                    s.recv(length)
+                    for i in range(4):
+                        length = struct.unpack('>h', s.recv(2))[0]
+                        s.recv(length)
                 elif packet_id == 0x83:
                     s.recv(4)
                     s.recv(struct.unpack('>B', s.recv(1))[0])
@@ -165,11 +148,7 @@ def m():
                     length = struct.unpack('>h', s.recv(2))[0]
                     print(s.recv(length * 2).decode('utf-16-be'))
                     return
-                
-                elif packet_id in packet_ids:
-                    s.recv(packet_ids[packet_id])
-
-            except socket.timeout:
-                return
-
+                elif packet_id in packet_lengths:
+                    s.recv(packet_lengths[packet_id])
+            
 m()
