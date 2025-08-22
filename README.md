@@ -2,6 +2,6 @@ Use
 ```
 python client.py
 ```
+To change the ip, port, and username, modify the constants at the beginning of the file.
 
-To change the port, modify the constant at the beginning of the file.
-For no dependencies, use client_old.py, do know you must manually change the server ip and username, as well as the port, in the beginning of the file. It will not prompt you.
+For a better input system and colors in the terminal, but harder to read and modify code, use client_2.py. Will be updated soon. This needs the dependency in requirements.txt
