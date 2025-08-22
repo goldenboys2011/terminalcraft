@@ -2,6 +2,7 @@ import sys
 import socket
 import struct
 import time
+import random
 import select
 
 # MODIFY THESE CONSTANTS FOR USAGE
@@ -9,8 +10,16 @@ import select
 server = "2beta2t.net"
 port = 25565
 username = "YawningCheese01"
+auto_login = True
+enable_bot = True
 
-# refer to https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol?oldid=2769758 
+auto_login_command = "/"
+
+if auto_login:
+    auto_login_command = input("auto login command for this session: ")
+
+# refer to 
+# https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol?oldid=2769758 
 # for protocol and packet info
 
 def send_packet(s, id, data):
@@ -30,8 +39,41 @@ def decode_string16(s):
     length = parse_short(s)
     return s.recv(length * 2).decode('utf-16-be')
 
+time_message = time.time()
+queue = []
+
 def send_message(s, message):
-    send_packet(s, 3, encode_string16(message))
+    global time_message
+    global queue
+
+    queue.append(message)
+
+bot_int = 0
+
+def append_bot(string):
+    global bot_int
+
+    bot_int += 1
+    return string + "     " + str(bot_int)
+
+# add your own bot function
+
+def asknotch(s, args):
+    send_message(s, append_bot(random.choice(["Yes", "No", "Maybe"])))
+
+bot_prefix = "y!"
+bot_commands = {
+    "asknotch": asknotch,
+}
+
+def help(s):
+    global bot_commands
+
+    string = "Commands: "
+    for key in bot_commands:
+        string += key + " "
+    send_message(s, append_bot(string))
+
 
 # important packet functions, see packet_funcs for how to register
 
@@ -43,11 +85,40 @@ def handle_handshake(s):
                     struct.pack('>qb', 0, 0))
 
 def handle_chat(s):
-    print(decode_string16(s))
+    global bot_commands
+    global enable_bot
+
+    message = decode_string16(s)
+    print(message)
+    if bot_prefix in message and message.startswith("<") and enable_bot: # bot command parse
+        i = 0
+        for char in message:
+            if char == ">":
+                break
+            i += 1
+        if i < 18:
+            remove_name = message[(i + 4):]
+            if not message[i + 2:].startswith("y!"):
+                return
+            args = remove_name.split()
+
+            if len(args) == 0:
+                help(s)
+                return
+
+            command = args[0]
+            args.pop(0)
+
+            if command in bot_commands:
+                bot_commands[command](s, args)
+            else:
+                help(s)
+
 
 def handle_kick(s):
     print("kick")
     print(decode_string16(s))
+    raise Exception
 
 # map for important packets
 # the key is the packet id, and the value is the function to call
@@ -103,10 +174,19 @@ fixed_packet_lengths = {
 }
 
 def handle_tick(s):
+    global time_message
+    global queue
+
     send_packet(s, 0, b'') # keep alive packet
 
+    if time.time() > time_message and len(queue) > 0:
+        send_packet(s, 3, encode_string16(queue[0]))
+        queue.pop(0)
+        time_message = time.time() + 1
+
 def handle_input(s):
-    send_message(s, sys.stdin.readline())
+    if select.select([sys.stdin], [], [], 0)[0]: # user input handling
+        send_message(s, sys.stdin.readline())
 
 def handle_packet(s, packet_id):
     if packet_id in packet_funcs: # handle important functions
@@ -173,30 +253,39 @@ def handle_packet(s, packet_id):
         case _: # unimportant packets with fixed lengths
             if packet_id in fixed_packet_lengths:
                 s.recv(fixed_packet_lengths[packet_id])
+            else:
+                raise Exception
 
-def m():
-    prev_time = time.time()
+while True:
+    try:
+        start_time = time.time()
+        prev_time = time.time()
+        has_logged_in = False
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((server, port))
-        print("Connected to server. Sending login...")
-        send_packet(s, 2, encode_string16(username)) # send handshake
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((server, port))
+            print("Connected to server. Sending login...")
+            send_packet(s, 2, encode_string16(username)) # send handshake
+        
+            while True:
+                if auto_login and time.time() - start_time > 3 and not has_logged_in:
+                    send_message(s, auto_login_command)
+                    has_logged_in = True
 
-        while True:
-            if time.time() - prev_time > 0.05: # main tick loop
-                handle_tick(s)
-                prev_time = time.time()
+                if time.time() - prev_time > 0.05: # main tick loop
+                    handle_tick(s)
+                    prev_time = time.time()
 
-            if select.select([sys.stdin], [], [], 0)[0]: # user input handling
                 handle_input(s)
 
-            if select.select([s], [], [], 0)[0]: # packet handling
-                data = s.recv(1)
-                if data == b'':
-                    continue
-                
-                packet_id = struct.unpack('>B', data)[0]
+                if select.select([s], [], [], 0)[0]: # packet handling
+                    data = s.recv(1)
+                    if data == b'':
+                        continue
+                    
+                    packet_id = struct.unpack('>B', data)[0]
 
-                handle_packet(s, packet_id)
-            
-m()
+                    handle_packet(s, packet_id)
+    except Exception:
+        print("disconnected, reconnecting...")
+        time.sleep(2)
