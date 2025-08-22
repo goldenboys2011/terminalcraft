@@ -48,13 +48,15 @@ def send_message(s, message):
 
     queue.append(message)
 
-bot_int = 0
+bot_int = False
 
 def append_bot(string):
     global bot_int
 
-    bot_int += 1
-    return string + "     " + str(bot_int)
+    if bot_int:
+        string += "."
+    bot_int = not bot_int
+    return string
 
 # add your own bot function
 
@@ -141,7 +143,6 @@ fixed_packet_lengths = {
     5: 10,
     6: 12,
     7: 9,
-    8: 2,
     9: 1,
     0x0d: 41,
     0x0e: 11,
@@ -194,6 +195,10 @@ def handle_packet(s, packet_id):
         return
 
     match packet_id: # unimportant variable length packets
+        case 0x08:
+            health = parse_short(s)
+            if health <= 0:
+                send_packet(s, 9, b'1')
         case 0x0f:
             if parse_short(s) >= 0:
                 s.recv(3)
