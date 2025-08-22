@@ -4,6 +4,7 @@ import struct
 import time
 import random
 import select
+from datetime import datetime, timezone
 
 # MODIFY THESE CONSTANTS FOR USAGE
 
@@ -91,6 +92,10 @@ def handle_chat(s):
     global enable_bot
 
     message = decode_string16(s)
+
+    with open("log.txt", "a") as file:
+        file.write(datetime.now(timezone.utc).strftime("%d/%m/%y %H:%M:%S ") + message + "\n")
+
     print(message)
     if bot_prefix in message and message.startswith("<") and enable_bot: # bot command parse
         i = 0
@@ -189,6 +194,8 @@ def handle_input(s):
         send_message(s, sys.stdin.readline())
 
 def handle_packet(s, packet_id):
+    if packet_id == 0:
+        return
     if packet_id in packet_funcs: # handle important functions
         packet_funcs[packet_id](s)
         return
