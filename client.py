@@ -262,6 +262,7 @@ def handle_packet(s, packet_id):
             if packet_id in fixed_packet_lengths:
                 s.recv(fixed_packet_lengths[packet_id])
             else:
+                print("bad packet id: " + str(packet_id))
                 raise Exception
 
 while True:
