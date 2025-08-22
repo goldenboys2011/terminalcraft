@@ -138,7 +138,6 @@ packet_funcs = {
 # unimportant variable length packets are handled later
 
 fixed_packet_lengths = {
-    1: 15,
     4: 8,
     5: 10,
     6: 12,
@@ -195,6 +194,10 @@ def handle_packet(s, packet_id):
         return
 
     match packet_id: # unimportant variable length packets
+        case 0x01:
+            s.recv(4)
+            decode_string16(s)
+            s.recv(9)
         case 0x08:
             health = parse_short(s)
             if health <= 0:
