@@ -103,7 +103,7 @@ fixed_packet_lengths = {
 }
 
 def handle_tick(s):
-    send_packet(s, 0, b'')
+    send_packet(s, 0, b'') # keep alive packet
 
 def handle_input(s):
     send_message(s, sys.stdin.readline())
@@ -111,6 +111,7 @@ def handle_input(s):
 def handle_packet(s, packet_id):
     if packet_id in packet_funcs: # handle important functions
         packet_funcs[packet_id](s)
+        return
 
     match packet_id: # unimportant variable length packets
         case 0x0f:
