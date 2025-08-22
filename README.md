@@ -4,6 +4,6 @@ python client.py
 ```
 REQUIREMENTS.TXT NOT NEEDED unless you use client_2.py.
 
-To change the ip, port, and username, modify the constants at the beginning of the file.
+To change the ip, port, username, and if the bot is enabled, modify the constants at the beginning of the file.
 
 For a better input system and colors in the terminal, but harder to read and modify code, use client_2.py. Will be updated soon. This file needs the dependency prompt_toolkit==3.0.51
