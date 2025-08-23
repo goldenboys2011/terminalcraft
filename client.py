@@ -214,8 +214,8 @@ def handle_packet(s, packet_id):
                 s.recv(3)
         case 0x14:
             s.recv(4)
-            length = parse_short(s)
-            s.recv(length + 16)
+            decode_string16(s)
+            s.recv(16)
         case 0x17:
             s.recv(17)
             if parse_int(s) > 0:
