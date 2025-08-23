@@ -245,7 +245,8 @@ def handle_packet(s, packet_id):
             s.recv(parse_int(s) * 3)
         case 0x64:
             s.recv(2)
-            decode_string16(s)
+            length = parse_short(s)
+            s.recv(length)
             s.recv(1)
         case 0x67:
             s.recv(3)
