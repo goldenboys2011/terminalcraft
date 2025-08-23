@@ -1,16 +1,19 @@
-import sys
 import socket
 import struct
+import threading
 import time
 import random
 import select
 from datetime import datetime, timezone
+from prompt_toolkit import ANSI, PromptSession, print_formatted_text
+from prompt_toolkit.patch_stdout import patch_stdout
+session = PromptSession()
 
 # MODIFY THESE CONSTANTS FOR USAGE
 
 server = "2beta2t.net"
 port = 25565
-username = "YawningCheese01"
+username = "golden2"
 auto_login = True
 enable_bot = True
 
@@ -77,6 +80,38 @@ def help(s):
         string += key + " "
     send_message(s, append_bot(string))
 
+# Color translation
+
+# Chatgpt cooked this color map
+mc_color_map = {
+    "§0": "\x1b[30m",
+    "§1": "\x1b[34m",
+    "§2": "\x1b[32m",
+    "§3": "\x1b[36m",
+    "§4": "\x1b[31m",
+    "§5": "\x1b[35m",
+    "§6": "\x1b[33m",
+    "§7": "\x1b[37m",
+    "§8": "\x1b[90m",
+    "§9": "\x1b[94m",
+    "§a": "\x1b[92m",
+    "§b": "\x1b[96m",
+    "§c": "\x1b[91m",
+    "§d": "\x1b[95m",
+    "§e": "\x1b[93m",
+    "§f": "\x1b[97m",
+    "§l": "\x1b[1m",
+    "§n": "\x1b[4m",
+    "§o": "\x1b[3m",
+    "§m": "\x1b[9m",
+    "§k": "",          
+    "§r": "\x1b[0m",
+}
+
+def translate_colors(msg: str) -> str:
+    for code, ansi in mc_color_map.items():
+        msg = msg.replace(code, ansi)
+    return msg + "\033[0m"
 
 # important packet functions, see packet_funcs for how to register
 
@@ -96,7 +131,7 @@ def handle_chat(s):
     with open("log.txt", "a") as file:
         file.write(datetime.now(timezone.utc).strftime("%d/%m/%y %H:%M:%S ") + message + "\n")
 
-    print(message)
+    print_formatted_text(ANSI(translate_colors(message)))
     if bot_prefix in message and message.startswith("<") and enable_bot: # bot command parse
         i = 0
         for char in message:
@@ -189,9 +224,24 @@ def handle_tick(s):
         queue.pop(0)
         time_message = time.time() + 1
 
-def handle_input(s):
-    if select.select([sys.stdin], [], [], 0)[0]: # user input handling
-        send_message(s, sys.stdin.readline())
+def listen_for_input():
+    with patch_stdout():
+        while True:
+            try:
+                user_input = session.prompt("> ")
+                if user_input.strip():
+                    send_message(s, user_input)
+            except EOFError:
+                break
+
+input_thread = threading.Thread(target=listen_for_input)
+input_thread.daemon = True
+
+## Old - NonThread input handle - Broken Format
+# def handle_input(s):
+#     if select.select([sys.stdin], [], [], 0)[0]: # user input handling
+#         send_message(s, sys.stdin.readline())
+
 
 def handle_packet(s, packet_id):
     if packet_id == 0:
@@ -283,6 +333,7 @@ while True:
             s.connect((server, port))
             print("Connected to server. Sending login...")
             send_packet(s, 2, encode_string16(username)) # send handshake
+            input_thread.start()
         
             while True:
                 if auto_login and time.time() - start_time > 3 and not has_logged_in:
@@ -293,7 +344,7 @@ while True:
                     handle_tick(s)
                     prev_time = time.time()
 
-                handle_input(s)
+                # handle_input(s)
 
                 if select.select([s], [], [], 0)[0]: # packet handling
                     data = s.recv(1)
