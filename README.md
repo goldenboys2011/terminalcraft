@@ -1,4 +1,4 @@
-TerminalCraft <img src="logo.png" alt="TerminalCraft Logo" align="right" width="100"/>
+# TerminalCraft <img src="logo.png" alt="TerminalCraft Logo" align="right" width="100"/>
 
 ![Made with Python](https://img.shields.io/badge/Made%20with-Python-3776AB?logo=python&logoColor=white)  ![Minecraft](https://img.shields.io/badge/Game-Minecraft-62B47A?logo=minecraft&logoColor=white)  ![Terminal App](https://img.shields.io/badge/Interface-Terminal-000000?logo=gnometerminal&logoColor=white) ![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-yellow)  
 
