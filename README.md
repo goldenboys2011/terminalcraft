@@ -39,10 +39,10 @@ This file needs the dependency ``prompt_toolkit==3.0.51``
 #### Tasks / To-Do
 
 ##### golden’s tasks
-[x] make formatting correct - color code
-[] support for proxie / proxie list from file
-[] modularised / librarie conversion
-[] logo
+- [x] make formatting correct - color code
+- [ ] support for proxie / proxie list from file
+- [ ] modularised / librarie conversion
+- [ ] logo
 
 ##### YawningCheese99's tasks
 -- 
