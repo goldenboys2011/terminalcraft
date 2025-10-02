@@ -1,33 +1,12 @@
 import socket
 import struct
-import threading
 import time
-import random
 import select
 from datetime import datetime, timezone
 from prompt_toolkit import ANSI, PromptSession, print_formatted_text
-from prompt_toolkit.patch_stdout import patch_stdout
+import socks
+
 session = PromptSession()
-
-# MODIFY THESE CONSTANTS FOR USAGE
-
-server = "2beta2t.net"
-port = 25565
-username = "golden"
-auto_login = True
-enable_bot = False
-
-auto_login_command = "/"
-
-if auto_login:
-    auto_login_command = input("auto login command for this session: ")
-
-# refer to 
-# https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol?oldid=2769758 
-# for protocol and packet info
-
-def send_packet(s, id, data):
-    s.sendall(struct.pack(f'>b', id) + data)
 
 def parse(s, format):
     return struct.unpack('>' + format, s.recv(struct.calcsize('>' + format)))
@@ -43,45 +22,10 @@ def decode_string16(s):
     length = parse_short(s)
     return s.recv(length * 2).decode('utf-16-be')
 
-time_message = time.time()
-queue = []
-
-def send_message(s, message):
-    global queue
-
-    queue.append(message)
-
-bot_int = False
-
-def append_bot(string):
-    global bot_int
-
-    if bot_int:
-        string += "."
-    bot_int = not bot_int
-    return string
-
-# add your own bot function
-
-def asknotch(s, args):
-    send_message(s, append_bot(random.choice(["Yes", "No", "Maybe"])))
-
-bot_prefix = "t!"
-bot_commands = {
-    "asknotch": asknotch,
-}
-
-def help(s):
-    global bot_commands
-
-    string = "Commands: "
-    for key in bot_commands:
-        string += key + " "
-    send_message(s, append_bot(string))
+def send_packet(s, id, data):
+    s.sendall(struct.pack(f'>b', id) + data)
 
 # Color translation
-
-# Chatgpt cooked this color map
 mc_color_map = {
     "§0": "\x1b[30m",
     "§1": "\x1b[34m",
@@ -112,28 +56,30 @@ def translate_colors(msg: str) -> str:
         msg = msg.replace(code, ansi)
     return msg + "\033[0m"
 
-# important packet functions, see packet_funcs for how to register
-
-def handle_handshake(s):
+def handle_handshake(s, username):
     unknown = decode_string16(s)
     if unknown == "-":
         send_packet(s, 1, struct.pack('>i', 14) + 
                     encode_string16(username) + 
                     struct.pack('>qb', 0, 0))
 
-def handle_chat(s):
-    global bot_commands
-    global enable_bot
-
+def handle_chat(s, bot_prefix, enable_bot, bot_commands, enable_logs):
     message = decode_string16(s)
 
-    with open("log.txt", "a") as file:
-        file.write(datetime.now(timezone.utc).strftime("%d/%m/%y %H:%M:%S ") + message + "\n")
+    if enable_logs:
+        with open("log.txt", "a") as file:
+            file.write(datetime.now(timezone.utc).strftime("%d/%m/%y %H:%M:%S ") + message + "\n")
 
     print_formatted_text(ANSI(translate_colors(message)))
+
+    # To save compute power
+    if bot_commands == {}: return
+
     if bot_prefix in message and message.startswith("<") and enable_bot: # bot command parse
         i = 0
+        sender = ""
         for char in message:
+            sender += char
             if char == ">":
                 break
             i += 1
@@ -151,15 +97,16 @@ def handle_chat(s):
             args.pop(0)
 
             if command in bot_commands:
-                bot_commands[command](s, args)
+                bot_commands[command](s, args, sender)
             else:
                 help(s)
 
 
-def handle_kick(s):
+def handle_kick(s, queue):
     print("kick")
     print(decode_string16(s))
-    raise Exception
+    queue.clear()
+    #raise Exception
 
 # map for important packets
 # the key is the packet id, and the value is the function to call
@@ -212,46 +159,15 @@ fixed_packet_lengths = {
     0xc8: 5
 }
 
-def handle_tick(s):
-    global time_message
-    global queue
-
-    send_packet(s, 0, b'') # keep alive packet
-
-    if time.time() > time_message and len(queue) > 0:
-        send_packet(s, 3, encode_string16(queue[0]))
-        queue.pop(0)
-        time_message = time.time() + 1
-
-def listen_for_input():
-    with patch_stdout():
-        while True:
-            try:
-                user_input = session.prompt("> ")
-                if user_input.strip():
-                    if user_input == "!exit":
-                        print("Exiting...")
-                        s.close()
-                        exit(0) 
-                        pass
-                    send_message(s, user_input)
-            except EOFError:
-                break
-
-input_thread = threading.Thread(target=listen_for_input)
-input_thread.daemon = True
-
-## Old - NonThread input handle - Broken Format
-# def handle_input(s):
-#     if select.select([sys.stdin], [], [], 0)[0]: # user input handling
-#         send_message(s, sys.stdin.readline())
-
-
-def handle_packet(s, packet_id):
+def handle_packet(s, packet_id, username, bot_prefix, enable_bot, bot_commands, enable_logs, queue):
     if packet_id == 0:
         return
     if packet_id in packet_funcs: # handle important functions
-        packet_funcs[packet_id](s)
+        # Send more data to functions to be able to have multiple "bots"
+
+        if packet_id == 2 : packet_funcs[packet_id](s, username) # handle handshake
+        elif packet_id == 3: packet_funcs[packet_id](s, bot_prefix, enable_bot, bot_commands, enable_logs) # handle chat
+        else: packet_funcs[packet_id](s, queue) # handle kick
         return
 
     match packet_id: # unimportant variable length packets
@@ -327,37 +243,93 @@ def handle_packet(s, packet_id):
                 print("bad packet id: " + str(packet_id))
                 #raise Exception
 
-while True:
-    try:
-        start_time = time.time()
-        prev_time = time.time()
-        has_logged_in = False
+# Impotable Claas           
+class Bot():
+    def __init__(self, username, ip, botCommands = {}, port = 25565, bot_prefix = "y!", enable_bot = True, enable_logs = True, disconectMessage = "Disconcted, trying again", auto_login = False, auto_login_command = "", proxy = "", proxy_port = ""):
+        # Bot variables
+        self.username = username
+        self.ip = ip
+        self.port = port
+        self.botCommands = botCommands
+        self.queue = []
+        self.time_message = time.time()
+        self.bot_prefix = bot_prefix
+        self.enable_bot = enable_bot
+        self.enable_logs = enable_logs
+        self.disconectMessage = disconectMessage
+        self.initialised = False
+        self.auto_login = auto_login
+        self.auto_login_command = auto_login_command
+        self.s = None
+        self.proxy = proxy
+        self.proxy_port = proxy_port
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((server, port))
-            print("Connected to server. Sending login...")
-            send_packet(s, 2, encode_string16(username)) # send handshake
-            input_thread.start()
+        self.init()
+
+    def setCommands(self, commands):
+        self.botCommands = commands
         
-            while True:
-                if auto_login and time.time() - start_time > 3 and not has_logged_in:
-                    send_message(s, auto_login_command)
-                    has_logged_in = True
+    def send_message(self, message):
+        self.queue.append(message)
 
-                if time.time() - prev_time > 0.05: # main tick loop
-                    handle_tick(s)
-                    prev_time = time.time()
+    def handle_tick(self, s):
+        if not self.s:
+            return  # no active connection
+        send_packet(s, 0, b'') # keep alive packet
 
-                # handle_input(s)
+        if time.time() > self.time_message and len(self.queue) > 0:
+            send_packet(s, 3, encode_string16(self.queue[0]))
+            self.queue.pop(0)
+            self.time_message = time.time() + 1.3
 
-                if select.select([s], [], [], 0)[0]: # packet handling
-                    data = s.recv(1)
-                    if data == b'':
-                        continue
-                    
-                    packet_id = struct.unpack('>B', data)[0]
+    def init(self):
+        try:
+            self.start_time = time.time()
+            self.prev_time = time.time()
+            self.has_logged_in = False
 
-                    handle_packet(s, packet_id)
-    except Exception:
-        print("disconnected, reconnecting...")
-        time.sleep(2)
+            # Create a SOCKS socket if proxy is set
+            if self.proxy !="" and self.proxy_port !="":
+                self.s = socks.socksocket()  # wrap a socket
+                self.s.set_proxy(socks.SOCKS5, self.proxy, int(self.proxy_port))
+            else:
+                self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            # Connect to server
+            self.s.connect((self.ip, self.port))
+            print("Connected to server. Sending login...")
+            send_packet(self.s, 2, encode_string16(self.username))  # handshake
+            self.initialised = True
+
+        except Exception as e:
+            print(self.disconectMessage)
+            print("Error:", e)  # Optional: show the real exception
+            time.sleep(2)
+            self.queue.clear()
+            self.initialised = False
+
+    # Main Loops | Needs to be called each tick (e.x While True loop)
+    def onTick(self):
+        if not self.initialised: self.init()
+        try:
+            if self.auto_login and time.time() - self.start_time > 1 and not self.has_logged_in:
+                self.send_message(self.auto_login_command)
+                self.has_logged_in = True
+
+            if time.time() - self.prev_time > 0.05: # main tick loop
+                self.handle_tick(self.s)
+                self.prev_time = time.time()
+
+            if select.select([self.s], [], [], 0)[0]: # packet handling
+                data = self.s.recv(1)
+                if data == b'':
+                    return
+                
+                packet_id = struct.unpack('>B', data)[0]
+                
+                # Pass aditional bot data to handle packet
+                handle_packet(self.s, packet_id, self.username, self.bot_prefix, self.enable_bot, self.botCommands, self.enable_logs, self.queue)
+        except Exception:
+            print(self.disconectMessage)
+            time.sleep(2)
+            self.initialised = False

@@ -1,4 +1,4 @@
-# TerminalCraft <img src="logo.png" alt="TerminalCraft Logo" align="right" width="100"/>
+# TerminalCraft
 
 ![Made with Python](https://img.shields.io/badge/Made%20with-Python-3776AB?logo=python&logoColor=white)  ![Minecraft](https://img.shields.io/badge/Game-Minecraft-62B47A?logo=minecraft&logoColor=white)  ![Terminal App](https://img.shields.io/badge/Interface-Terminal-000000?logo=gnometerminal&logoColor=white) ![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-yellow)  
 
@@ -22,14 +22,12 @@ This file needs the dependency ``prompt_toolkit==3.0.51``
 
 ### Latest Updates
 
-### Latest Updates
-
 | Update | Date |
 |------------| ----------- |
 | Added Color Maping on [``client.py``](/client.py) | 23 Aug 2025
 | Fixed Formating on [``client.py``](/client.py) | 23 Aug 2025
 | Made [``client_2.py``](/client_2.py) depricated | 23 Aug 2025
-| Made modularised bot system ready for import/library | 24 Aug 2025
+| Made modularised bot system ready for import | 24 Aug 2025
 
 ### Contributors 💙
 
@@ -49,3 +47,11 @@ This file needs the dependency ``prompt_toolkit==3.0.51``
 
 ##### YawningCheese99's tasks
 -- 
+
+
+
+                    if user_input == "!exit":
+                        print("Exiting...")
+                        s.close()
+                        exit(0) 
+                        pass
